@@ -1,0 +1,11 @@
+000_proj_desc.txt
+data/
+p00*/
+._*
+*/._*
+.DS_Store
+old
+*/old/
+*XXX*
+*/*XXX*
+*/venv/
