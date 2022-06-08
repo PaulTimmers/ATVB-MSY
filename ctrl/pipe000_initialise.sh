@@ -49,15 +49,22 @@ rm -r output
 # UKBB snp list
 #--------------
 
-ln -s /exports/igmm/eddie/UK-BioBank-Genotype/genotypes/ukb_snp_chrY_v2.bim d002_ukbb_snps.hg19.bim
-
+ln -sf /exports/igmm/eddie/UK-BioBank-Genotype/genotypes/ukb_snp_chrY_v2.bim d002_ukbb_snps.hg19.bim
+ln -sf /exports/igmm/eddie/UK-BioBank-Genotype/genotypes/ukb_cal_chrY_v2.bed d002_ukbb_snps.hg19.bed
+ln -sf /exports/igmm/eddie/UK-BioBank-proj19655/genotypes/array/ukbb_proj19655.fam d002_ukbb_snps.hg19.fam
 
 
 # UKBB phenotypes
 #----------------
 
-# All variables
+# All main variables
 ln -sf /exports/igmm/eddie/UK-BioBank-proj19655/phenotypes/2021_04_27/dataset_45130/p03_usable_data/ukb45130.tsv d003_ukbb_data.tsv
+
+# Sample qc data
+ln -sf /exports/igmm/eddie/UK-BioBank-proj19655/processing/ukbb_proj19655_sample_qc.tsv d003_ukbb_sample_qc.tsv
+
+# Relatedness data
+ln -sf /exports/igmm/eddie/UK-BioBank-proj19655/processing/ukb19655_rel_s488363.dat d003_ukbb_rel.dat
 
 # Blood biochemistry data
 ln -sf /exports/igmm/eddie/UK-BioBank-proj19655/phenotypes/2019_03_27/dataset_27719/p03_usable_data/ukb27719.tsv d003_ukbb_biochem.tsv

@@ -152,6 +152,52 @@ t1 <- data.table(trait="bp", n_independent_haplos,n_independent_vars,n_independe
 fwrite(t1, "st005_02_bp_geo_ntests.csv", sep=",", na="NA", quote=FALSE)
 
 
+#----
+# Base model
+#----
+
+# Run model
+#----------
+
+res_no_geovars <- data.table()
+for(haplo in quant_groups) {
+  writeLines(haplo)
+  fs <- paste0("sys_blood_pressure ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  ms <- speedlm(as.formula(fs), data=ph1, model=TRUE)
+  ss <- summary(ms)
+  sys_coef <- ss$coefficients[grepl(paste0("^`",haplo),rownames(ss$coefficients)),,drop=FALSE]
+  
+  fd <- paste0("dia_blood_pressure ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  md <- speedlm(as.formula(fd), data=ph1, model=TRUE)
+  sd <- summary(md)
+  dia_coef <- sd$coefficients[grepl(paste0("^`",haplo),rownames(sd$coefficients)),,drop=FALSE]
+
+  fm <- paste0("med_blood_pressure ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mm <- speedlm(as.formula(fm), data=ph1, model=TRUE)
+  sm <- summary(mm)
+  med_coef <- sm$coefficients[grepl(paste0("^`",haplo),rownames(sm$coefficients)),,drop=FALSE]
+
+  res_no_geovars <-  rbind(res_no_geovars,
+  data.table(coef=rownames(sys_coef), n_haplo=sum(ms$model[,haplo]), n_total=ss$nobs, sys_coef, trait="SBP"),
+  data.table(coef=rownames(dia_coef), n_haplo=sum(md$model[,haplo]), n_total=sd$nobs, dia_coef, trait="DBP"),
+  data.table(coef=rownames(med_coef), n_haplo=sum(mm$model[,haplo]), n_total=sm$nobs, med_coef, trait="MAP")
+  )
+}
+
+names(res_no_geovars)[c(4,7)] <- c("beta","p")
+res_no_geovars[,coef:=gsub("`","",gsub("TRUE","",coef))]
+
+
+# Adjust for multiple testing
+res_no_geovars[,p_adj:=pmin(1, p * n_independent_tests)]
+fwrite(res_no_geovars, "st005_02_bp_base_model.csv", sep=",", na="NA", quote=FALSE)
+
+
+
+
+#----
+# Geovars model
+#----
 
 # Run model
 #----------

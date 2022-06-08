@@ -128,7 +128,84 @@ pca <- princomp(cor(ph2, use="pair"))
 cumulative_variance_explained <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
 n_independent_haplos <- min(which(cumulative_variance_explained > 0.95))
 
+#----
+# Base model
+#----
 
+# Run model
+#----------
+
+res_no_geovars <- data.table()
+for(haplo in quant_groups) {
+  writeLines(haplo)
+  fs <- paste0("Surv(age_entry, age_exit, dead) ~ `",haplo,"` + array + ",paste0("pc",1:n_pcs, collapse=" + "))
+  ms <- coxph(as.formula(fs), data=ph1, model=TRUE)
+  ss <- summary(ms)
+  son_coef <- ss$coefficients[grepl(paste0("^`",haplo),rownames(ss$coefficients)),,drop=FALSE]
+  colnames(son_coef) <- c("beta","hr","se","z","p")
+
+ res1 <- data.table(
+      coef=gsub("`","",gsub("TRUE","",rownames(son_coef))),
+      n_haplo=sum(ms$model[,haplo]),
+      n_dead=sum(ms$model[,"Surv(age_entry, age_exit, dead)"][,3]),
+      n_censored=sum(!ms$model[,"Surv(age_entry, age_exit, dead)"][,3]),
+      n_total=ms$n, son_coef,
+      par="son"
+  )
+
+  res_no_geovars <-  rbind(res_no_geovars, res1)
+}
+
+# Validate significant
+#---------------------
+
+sig_haplos <- res_no_geovars[p < 0.1, coef]
+
+for(haplo in sig_haplos) {
+  writeLines(haplo)
+  ff <- paste0("Surv(fath_age, fath_dead) ~ `",haplo,"` + array + ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mf <- coxph(as.formula(ff), data=ph1, model=TRUE)
+  sf <- summary(mf)
+  fath_coef <- sf$coefficients[grepl(paste0("^`",haplo),rownames(sf$coefficients)),,drop=FALSE]
+  colnames(fath_coef) <- c("beta","hr","se","z","p")
+
+  fm <- paste0("Surv(moth_age, moth_dead) ~ `",haplo,"` + array + ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mm <- coxph(as.formula(fm), data=ph1, model=TRUE)
+  sm <- summary(mm)
+  moth_coef <- sm$coefficients[grepl(paste0("^`",haplo),rownames(sm$coefficients)),,drop=FALSE]
+  colnames(moth_coef) <- c("beta","hr","se","z","p")
+
+  res1f <- data.table(
+    coef=gsub("`","",gsub("TRUE","",rownames(fath_coef))),
+    n_haplo=sum(mf$model[,haplo]),
+    n_dead=sum(mf$model[,"Surv(fath_age, fath_dead)"][,2]),
+    n_censored=sum(!mf$model[,"Surv(fath_age, fath_dead)"][,2]),
+    n_total=mf$n, fath_coef,
+    par="fath"
+  )
+  
+  res1m <- data.table(
+    coef=gsub("`","",gsub("TRUE","",rownames(moth_coef))),
+    n_haplo=sum(mm$model[,haplo]),
+    n_dead=sum(mm$model[,"Surv(moth_age, moth_dead)"][,2]),
+    n_censored=sum(!mm$model[,"Surv(moth_age, moth_dead)"][,2]),
+    n_total=mm$n, moth_coef,
+    par="moth"
+  )
+
+  res_no_geovars <-  rbind(res_no_geovars,res1f,res1m)
+}
+
+
+# Adjust for multiple testing
+res_no_geovars[,p_adj:=pmin(1, p * n_independent_haplos)]
+fwrite(res_no_geovars, "st005_06_surv_base_model.csv", sep=",", na="NA", quote=FALSE)
+
+
+
+#----
+# Geovars model
+#----
 
 # Run model
 #----------
@@ -232,74 +309,29 @@ ggsave("st005_06_surv_geo_model.pdf", p1, width=6, height=5)
 
 
 
+# Create base plot
+res1 <- res_no_geovars[coef %in% res_no_geovars[p < 0.1,coef],]
+
+coef_levels <- res1[par=="son",][order(beta),coef]
+res1[,coef:=factor(coef, levels=coef_levels)]
+
+res1[,kin:=factor(kin_names[par], levels=kin_names)]
+breaks <- res1[,pretty(c(beta + se, beta - se), n=3)]
+rf <- res1[,.(coef, beta=range(breaks), kin)]
+
+p1 <- ggplot(res1, aes(x=beta, y=coef, colour=kin)) +
+geom_vline(xintercept=0, linetype=2) +
+geom_errorbarh(aes(xmin=beta - qnorm(0.975)*se, xmax=beta + qnorm(0.975)*se),position=position_dodge(-0.25), height=0) + 
+geom_point(aes(shape=kin),fill="white",position=position_dodge(-0.25)) + 
+geom_rangeframe(data=rf, aes(x=beta, y=coef), inherit.aes=FALSE) +
+scale_shape_manual(values=c(19,19,21), guide="none") +
+scale_colour_manual(values=cbb_palette, name="", guide=guide_legend(override.aes = list(shape=c(19,19,21), fill=c("#000000","#E69F00","#FFFFFF")) )) +
+scale_x_continuous(breaks=breaks) +
+labs(x="log(HR)", y="Haplogroup") +
+theme_pubclean() + 
+theme(legend.position="right")
+
+ggsave("st005_06_surv_base_model.pdf", p1, width=6, height=5)
 
 
-
-# # Create martingale residuals
-# fs <- paste0("Surv(age_entry, age_exit, dead) ~ ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# ms <- coxph(as.formula(fs), data=ph1)
-# ff <- paste0("Surv(fath_age, fath_dead) ~ ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# mf <- coxph(as.formula(ff), data=ph1)
-# fm <- paste0("Surv(moth_age, moth_dead) ~ ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# mm <- coxph(as.formula(fm), data=ph1)
-
-# ph1$martingale <- ph1$dead - predict(ms, newdata=ph1, type="expected")
-# ph1$fath_martingale <- ph1$fath_dead - predict(mf, newdata=ph1, type="expected")
-# ph1$moth_martingale <- ph1$moth_dead - predict(mm, newdata=ph1, type="expected")
-
-# # Get number of independent y variables
-# ph3 <- ph1[,c("martingale","fath_martingale","moth_martingale")]
-# pca <- princomp(cor(ph3, use="pair"))
-# cumulative_variance_explained <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
-# n_independent_vars <- min(which(cumulative_variance_explained > 0.95))
-
-# # Calculate number of independent tests
-# n_independent_tests <- n_independent_vars * n_independent_haplos
-
-# Write to file
-# t1 <- data.table(trait="surv", n_independent_haplos,n_independent_vars,n_independent_tests)
-# fwrite(t1, "st005_06_surv_geo_ntests.csv", sep=",", na="NA", quote=FALSE)
-
-
-# # Run joint model
-# #----------------
-
-# # Remove individuals who are not members of any of the main CVD haplogroups
-# ph2 <- ph1[,c("iid",quant_groups)]
-# no_haplos <- apply(ph2[,-1], 1, function(x){all(x == 0)})
-# no_haplos_iid <- ph2[no_haplos, "iid"]
-# ph3 <- ph1[!ph1$iid %in% no_haplos_iid,]
-
-# # Format haplogroups for joint formula
-# reference <- quant_groups[1]
-# haplos <- paste0(paste0("`",quant_groups[-1],"`"),collapse=" + ")
-
-
-# # Run analysis
-# fs <- paste0("Surv(age_entry, age_exit, dead) ~ ",haplos," + array + ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# ms <- coxph(as.formula(fs), data=ph3, model=TRUE)
-# ss <- summary(ms)
-# son_coef <- ss$coefficients[rownames(ss$coefficients) %in% paste0("`",quant_groups[-1],"`TRUE"),,drop=FALSE]
-
-# ff <- paste0("Surv(fath_age, fath_dead) ~ ",haplos," + array + ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# mf <- coxph(as.formula(ff), data=ph3, model=TRUE)
-# sf <- summary(mf)
-# fath_coef <- sf$coefficients[rownames(sf$coefficients) %in% paste0("`",quant_groups[-1],"`TRUE"),,drop=FALSE]
-
-# fm <- paste0("Surv(moth_age, moth_dead) ~ ",haplos," + array + ",paste0(geovars,collapse=" + ")," + ",paste0("pc",1:n_pcs, collapse=" + "))
-# mm <- coxph(as.formula(fm), data=ph3, model=TRUE)
-# sm <- summary(mm)
-# moth_coef <- sm$coefficients[rownames(sm$coefficients) %in% paste0("`",quant_groups[-1],"`TRUE"),,drop=FALSE]
-
-# resj <-  rbind(
-#   data.table(coef=rownames(son_coef), n_haplo=lapply(ms$model[,gsub("`","",gsub("TRUE","",rownames(son_coef)))],sum), n_dead=sum(ms$model[,"Surv(age_entry, age_exit, dead)"][,3]), n_censored=sum(!ms$model[,"Surv(age_entry, age_exit, dead)"][,3]), n_total=nrow(ms$model), son_coef, par="son"),
-#   data.table(coef=rownames(fath_coef), n_haplo=lapply(mf$model[,gsub("`","",gsub("TRUE","",rownames(fath_coef)))], sum), n_dead=sum(mf$model[,"Surv(fath_age, fath_dead)"][,2]), n_censored=sum(!mf$model[,"Surv(fath_age, fath_dead)"][,2]), n_total=nrow(mf$model), fath_coef, par="fath"),
-#   data.table(coef=rownames(moth_coef), n_haplo=lapply(mm$model[,gsub("`","",gsub("TRUE","",rownames(moth_coef)))], sum), n_dead=sum(mm$model[,"Surv(moth_age, moth_dead)"][,2]), n_censored=sum(!mm$model[,"Surv(moth_age, moth_dead)"][,2]), n_total=nrow(mm$model), moth_coef, par="moth")
-#   )
-
-# names(resj)[c(6:10)] <- c("beta","hr","se","z","p")
-# resj[,coef:=gsub("`","",gsub("TRUE","",coef))]
-
-# # Adjust for multiple testing
-# resj[,p_adj:=pmin(1, p * n_independent_tests)]
 

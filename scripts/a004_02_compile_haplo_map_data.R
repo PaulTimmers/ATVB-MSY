@@ -169,10 +169,6 @@ summary_sample_df[TOT3 >= min_n_per_region & !is.na(N3) & !is.na(TOT3), PCT:=N3/
 
 
 
-
-
-
-
 #----
 # Export data for plotting
 #----

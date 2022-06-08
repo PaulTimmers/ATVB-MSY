@@ -22,7 +22,7 @@ Rscript ../scripts/a006_01_figure1.R
 # Figure 2
 #----
 
-cp ../p005_analysis/st005_01_eales_compare.pdf st006_02_figure2.pdf
+cp ../p005_analysis/st005_04_cvd_geo_model.pdf st006_02_figure2.pdf
 
 
 #----

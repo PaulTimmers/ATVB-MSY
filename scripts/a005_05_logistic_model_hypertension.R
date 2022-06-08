@@ -134,6 +134,85 @@ cumulative_variance_explained <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
 n_independent_haplos <- min(which(cumulative_variance_explained > 0.95))
 
 
+#----
+# Base model
+#----
+
+# Run model
+#----------
+
+res_no_geovars <- data.table()
+
+for(haplo in quant_groups) {
+  writeLines(haplo)
+  fs <- paste0("hypertension ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  ms <- speedglm(as.formula(fs), family=binomial(link="logit"), data=ph1, model=TRUE)
+  ss <- summary(ms)
+  son_coef <- ss$coefficients[grepl(paste0("^`",haplo),rownames(ss$coefficients)),,drop=FALSE]
+  names(son_coef) <- c("beta","se","z","p")
+  
+  res1 <- data.table(
+      coef=gsub("`","",gsub("TRUE","",rownames(son_coef))),
+      n_haplo=sum(ms$model[,haplo]),
+      n_cases=sum(ms$model[,"hypertension"]),
+      n_controls=sum(!ms$model[,"hypertension"]),
+      n_total=nrow(ms$model), son_coef,
+      par="son"
+  )
+
+  res_no_geovars <-  rbind(res_no_geovars, res1)
+}
+
+# Validate significant
+#---------------------
+
+sig_haplos <- res_no_geovars[p < 0.1, coef]
+
+for(haplo in sig_haplos) {
+  writeLines(haplo)
+  ff <- paste0("fath_hypertension ~ `",haplo,"` + array + fath_age + I(fath_age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mf <- speedglm(as.formula(ff), family=binomial(link="logit"), data=ph1, model=TRUE)
+  sf <- summary(mf)
+  fath_coef <- sf$coefficients[grepl(paste0("^`",haplo),rownames(sf$coefficients)),,drop=FALSE]
+  names(fath_coef) <- c("beta","se","z","p")
+
+  fm <- paste0("moth_hypertension ~ `",haplo,"` + array + moth_age + I(moth_age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mm <- speedglm(as.formula(fm), family=binomial(link="logit"), data=ph1, model=TRUE)
+  sm <- summary(mm)
+  moth_coef <- sm$coefficients[grepl(paste0("^`",haplo),rownames(sm$coefficients)),,drop=FALSE]
+  names(moth_coef) <- c("beta","se","z","p")
+
+  res1f <- data.table(
+      coef=gsub("`","",gsub("TRUE","",rownames(fath_coef))),
+      n_haplo=sum(mf$model[,haplo]),
+      n_cases=sum(mf$model[,"fath_hypertension"]),
+      n_controls=sum(!mf$model[,"fath_hypertension"]),
+      n_total=nrow(mf$model), fath_coef,
+      par="fath"
+  )
+
+  res1m <- data.table(
+      coef=gsub("`","",gsub("TRUE","",rownames(moth_coef))),
+      n_haplo=sum(mm$model[,haplo]),
+      n_cases=sum(mm$model[,"moth_hypertension"]),
+      n_controls=sum(!mm$model[,"moth_hypertension"]),
+      n_total=nrow(mm$model), moth_coef,
+      par="moth"
+  )
+
+  res_no_geovars <-  rbind(res_no_geovars,res1f,res1m)
+}
+
+
+# Adjust for multiple testing
+res_no_geovars[,p_adj:=pmin(1, p * n_independent_haplos)]
+fwrite(res_no_geovars, "st005_05_hypertension_base_model.csv", sep=",", na="NA", quote=FALSE)
+
+
+#----
+# Geovars model
+#----
+
 # Run model
 #----------
 
@@ -209,7 +288,7 @@ fwrite(res, "st005_05_hypertension_geo_model.csv", sep=",", na="NA", quote=FALSE
 # Plotting
 #–---
 
-# Create plot
+# Create geo plot
 res1 <- res[coef %in% res[p < 0.1, coef],]
 
 coef_levels <- res1[par=="son",][order(beta),coef]
@@ -232,5 +311,30 @@ theme_pubclean() +
 theme(legend.position="right")
 
 ggsave("st005_05_hypertension_geo_model.pdf", p1, width=6, height=3)
+
+
+# Create base plot
+res1 <- res_no_geovars[coef %in% res_no_geovars[p < 0.1, coef],]
+
+coef_levels <- res1[par=="son",][order(beta),coef]
+res1[,coef:=factor(coef, levels=coef_levels)]
+
+res1[,kin:=factor(kin_names[par], levels=kin_names)]
+breaks <- res1[,pretty(c(beta + se, beta - se), n=3)]
+rf <- res1[,.(coef, beta=range(breaks), kin)]
+
+p1 <- ggplot(res1, aes(x=beta, y=coef, colour=kin)) +
+geom_vline(xintercept=0, linetype=2) +
+geom_errorbarh(aes(xmin=beta - qnorm(0.975)*se, xmax=beta + qnorm(0.975)*se),position=position_dodge(-0.2), height=0) + 
+geom_point(aes(shape=kin),fill="white",position=position_dodge(-0.2)) + 
+geom_rangeframe(data=rf, aes(x=beta, y=coef), inherit.aes=FALSE) +
+scale_shape_manual(values=c(19,19,21), guide="none") +
+scale_colour_manual(values=cbb_palette, name="", guide=guide_legend(override.aes = list(shape=c(19,19,21), fill=c("#000000","#E69F00","#FFFFFF")) )) +
+scale_x_continuous(breaks=breaks) +
+labs(x="log(OR)", y="Haplogroup") +
+theme_pubclean() + 
+theme(legend.position="right")
+
+ggsave("st005_05_hypertension_base_model.pdf", p1, width=6, height=3)
 
 

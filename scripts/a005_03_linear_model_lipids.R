@@ -150,7 +150,56 @@ n_independent_tests <- n_independent_vars * n_independent_haplos
 t1 <- data.table(trait="lipid", n_independent_haplos,n_independent_vars,n_independent_tests)
 fwrite(t1, "st005_03_lipid_geo_ntests.csv", sep=",", na="NA", quote=FALSE)
 
+#----
+# Base model
+#----
 
+# Run model
+#----------
+
+res_no_geovars <- data.table()
+for(haplo in quant_groups) {
+  writeLines(haplo)
+  ft <- paste0("total_cholesterol ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mt <- speedlm(as.formula(ft), data=ph1, model=TRUE)
+  st <- summary(mt)
+  total_coef <- st$coefficients[grepl(paste0("^`",haplo),rownames(st$coefficients)),,drop=FALSE]
+  
+  fl <- paste0("ldl_cholesterol ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  ml <- speedlm(as.formula(fl), data=ph1, model=TRUE)
+  sl <- summary(ml)
+  ldl_coef <- sl$coefficients[grepl(paste0("^`",haplo),rownames(sl$coefficients)),,drop=FALSE]
+  
+  fh <- paste0("hdl_cholesterol ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  mh <- speedlm(as.formula(fh), data=ph1, model=TRUE)
+  sh <- summary(mh)
+  hdl_coef <- sh$coefficients[grepl(paste0("^`",haplo),rownames(sh$coefficients)),,drop=FALSE]
+
+  fy <- paste0("log_triglycerides ~ `",haplo,"` + array + age + I(age^2) + ",paste0("pc",1:n_pcs, collapse=" + "))
+  my <- speedlm(as.formula(fy), data=ph1, model=TRUE)
+  sy <- summary(my)
+  triglyc_coef <- sy$coefficients[grepl(paste0("^`",haplo),rownames(sy$coefficients)),,drop=FALSE]
+
+  res_no_geovars <-  rbind(res_no_geovars,
+  data.table(coef=rownames(total_coef), n_haplo=sum(mt$model[,haplo]), n_total=st$nobs, total_coef, trait="Total cholesterol"),
+  data.table(coef=rownames(ldl_coef), n_haplo=sum(ml$model[,haplo]), n_total=sl$nobs, ldl_coef, trait="LDL cholesterol"),
+  data.table(coef=rownames(hdl_coef), n_haplo=sum(mh$model[,haplo]), n_total=sh$nobs, hdl_coef, trait="HDL cholesterol"),
+  data.table(coef=rownames(triglyc_coef), n_haplo=sum(my$model[,haplo]), n_total=sy$nobs, triglyc_coef, trait="Triglycerides")
+  )
+}
+
+names(res_no_geovars)[c(4,7)] <- c("beta","p")
+res_no_geovars[,coef:=gsub("`","",gsub("TRUE","",coef))]
+
+
+# Adjust for multiple testing
+res_no_geovars[,p_adj:=pmin(1, p * n_independent_tests)]
+fwrite(res_no_geovars, "st005_03_lipid_base_model.csv", sep=",", na="NA", quote=FALSE)
+
+
+#----
+# Geovars model
+#----
 
 # Run model
 #----------

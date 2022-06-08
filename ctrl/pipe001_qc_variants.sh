@@ -15,11 +15,11 @@ awk 'NR == FNR {pos[$3]++; next} pos[$4] > 0 {print $2}' \
 
 
 # Perform variant quality control
-sample_qc=/exports/igmm/eddie/UK-BioBank-proj19655/processing/ukbb_proj19655_sample_qc.tsv
+sample_qc=../data/d003_ukbb_sample_qc.tsv
 min_snp_call_rate=0.95
 
 plink2 \
---bfile /exports/igmm/eddie/UK-BioBank-proj19655/genotypes/array/ukbb_proj19655_chr24 \
+--bfile ../data/d002_ukbb_snps.hg19 \
 --extract st001_01_shared_variants.txt \
 --keep <(awk -v infer_sex_col=12 '$infer_sex_col == "M" {print $1,$1}' ${sample_qc}) \
 --geno `echo 1-$min_snp_call_rate | bc` \
@@ -32,9 +32,8 @@ plink2 \
 # QC samples
 #----
 
-sample_qc=/exports/igmm/eddie/UK-BioBank-proj19655/processing/ukbb_proj19655_sample_qc.tsv
-sample_rel=/exports/igmm/eddie/UK-BioBank-proj19655/processing/ukb19655_rel_s488363.dat
-sample_gen=/exports/igmm/eddie/wilson-lab/data/base_data/ukbb_19655/phenotypes/ukbb_19655_genetic_phenotypes.tsv.gz
+sample_qc=../data/d003_ukbb_sample_qc.tsv
+sample_rel=../data/d003_ukbb_rel.dat
 
 # Males
 awk -v infer_sex_col=12 \

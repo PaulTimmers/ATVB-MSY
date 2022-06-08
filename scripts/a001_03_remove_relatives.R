@@ -14,7 +14,7 @@ library(data.table)
 #----
 
 iids <- fread("st001_03_iids.txt",header=FALSE,col.names="iid")
-rel <- fread("/exports/igmm/eddie/UK-BioBank-proj19655/processing/ukb19655_rel_s488363.dat")
+rel <- fread("../data/d003_ukbb_rel.dat")
 rel1 <- rel[ID1 %in% iids$iid & ID2 %in% iids$iid,]
 
 
