@@ -22,7 +22,14 @@ Rscript ../scripts/a006_01_figure1.R
 # Figure 2
 #----
 
-cp ../p005_analysis/st005_04_cvd_geo_model.pdf st006_02_figure2.pdf
+Rscript ../scripts/a006_02_figure2.R
+
+
+#----
+# Graphical abstract
+#----
+
+Rscript  ../scripts/a006_03_graphical_abstract.R
 
 
 #----
@@ -53,3 +60,7 @@ cd ../p004_maps/
 tar -cvzf st006_05_supplementary_data.tar.gz st004_03_*_birth.png
 cd ../p006_publication
 mv ../p004_maps/st006_05_supplementary_data.tar.gz ./
+
+
+# The tgz archive 'st006_05_supplementary_data.zip' has been uploaded to Edinburgh DataShare
+# https://doi.org/10.7488/ds/3472
